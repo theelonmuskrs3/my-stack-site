@@ -45,19 +45,66 @@ async function history() {
   try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) { c.put(url, r.clone()); return r.json(); } } catch (e) {}
   const hit = await c.match(url); if (hit) return hit.json(); throw new Error('history');
 }
+// ---- recent daily bars after the bundled Yahoo history: fawazahmed0/currency-api ----
+// Free, keyless, CORS-enabled, documented at https://github.com/fawazahmed0/exchange-api
+// The file dated D+1 holds rates taken ~00:00 UTC on D+1, i.e. the evening close of D (ET).
+const FX = { gold: 'xau', silver: 'xag', platinum: 'xpt', palladium: 'xpd' };
+const FX_CACHE = 'mystack-fx-v1';
+const fxUrls = day => [`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${day}/v1/currencies/usd.min.json`, `https://${day}.currency-api.pages.dev/v1/currencies/usd.min.json`];
+async function fxDay(day, immutable = true) {
+  const c = await caches.open(FX_CACHE); const k = 'https://fx.local/' + day;
+  if (immutable) { const hit = await c.match(k); if (hit) return hit.json(); }
+  for (const u of fxUrls(day)) {
+    try { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) continue; const j = await r.json(); if (!j || !j.usd) continue;
+      if (immutable) c.put(k, new Response(JSON.stringify(j))); return j; } catch (e) {}
+  }
+  return null;
+}
+const ymd = d => d.toISOString().slice(0, 10);
+const etMidnight = day => { // midnight America/New_York on calendar day `day` (YYYY-MM-DD), like Yahoo's daily bar stamps
+  const [y, m, d] = day.split('-').map(Number); const utcNoon = Date.UTC(y, m - 1, d, 12);
+  const off = new Date(utcNoon).toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'shortOffset' }).match(/GMT([+-]\d+)/);
+  return Date.UTC(y, m - 1, d, -(off ? +off[1] : -5));
+};
+async function recentBars(lastBundledT, asOf) {
+  const out = { gold: [], silver: [], platinum: [], palladium: [] };
+  const start = new Date(etDay(lastBundledT) + 'T12:00:00Z'); start.setUTCDate(start.getUTCDate() + 1);
+  const endDay = etDay(asOf); const days = [];
+  for (let d = new Date(start); ymd(d) < endDay && days.length < 400; d.setUTCDate(d.getUTCDate() + 1)) { const wd = d.getUTCDay(); if (wd >= 1 && wd <= 5) days.push(ymd(d)); }
+  const todayUtc = ymd(new Date());
+  const results = new Array(days.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(6, days.length) }, async () => { while (i < days.length) { const j = i++; const next = new Date(days[j] + 'T12:00:00Z'); next.setUTCDate(next.getUTCDate() + 1); const nd = ymd(next); results[j] = nd > todayUtc ? null : await fxDay(nd, nd < todayUtc); } }));
+  days.forEach((day, j) => { const r = results[j]; if (!r) return; for (const m in FX) { const v = r.usd[FX[m]]; if (v > 0) out[m].push({ t: etMidnight(day), spot: 1 / v }); } });
+  return out;
+}
+function despike(bars, prev, next) { // drop isolated one-day glitches (> 10% away from both neighbours that agree with each other)
+  return bars.filter((b, i) => { const a = i ? bars[i - 1].spot : prev, c = i < bars.length - 1 ? bars[i + 1].spot : next;
+    if (!(a > 0 && c > 0)) return true; const da = b.spot / a - 1, dc = b.spot / c - 1;
+    return !(Math.abs(da) > 0.1 && Math.abs(dc) > 0.1 && Math.sign(da) === Math.sign(dc) && Math.abs(a / c - 1) < 0.1); })
+    .filter((b, i, arr) => !i || b.spot !== arr[i - 1].spot); // stale holiday repeats
+}
 async function getSpots() {
   if (SPOTS && Date.now() - SPOTS_AT < 60000) return SPOTS;
   const h = await history(); const names = Object.keys(METALS);
-  const ks = await Promise.all(names.map(n => kitco(METALS[n][0]).catch(() => null)));
-  const out = {}; let asOf0;
+  let ks = await Promise.all(names.map(n => kitco(METALS[n][0]).catch(() => null)));
+  if (ks.some(k => !k)) { // spot fallback: currency-api latest
+    const L = await fxDay('latest', false);
+    if (L) ks = ks.map((k, i) => k || { spot: 1 / L.usd[FX[names[i]]], asOf: Date.parse(L.date + 'T00:00:00Z'), changePct: 0 });
+  }
+  const asOf0 = (ks[0] && ks[0].asOf) || h.gold.last.time;
+  const lastT = Math.max(...names.map(n => h[n].history[h[n].history.length - 1][0]));
+  let recent = { gold: [], silver: [], platinum: [], palladium: [] };
+  try { recent = await recentBars(lastT, asOf0); } catch (e) {}
+  const out = {};
   names.forEach((n, i) => {
     const k = ks[i], d = h[n];
     const spot = k ? k.spot : d.last.price, asOf = k ? k.asOf : d.last.time;
     const changePct = k ? k.changePct : d.last.price / d.last.prevClose - 1;
-    const hist = d.history.filter(([t]) => etDay(t) !== etDay(asOf) && t < asOf).map(([t, s]) => ({ t, spot: s }));
+    const base = d.history.map(([t, s]) => ({ t, spot: s }));
+    const extra = despike(recent[n].filter(b => b.t > base[base.length - 1].t), base[base.length - 1].spot, spot);
+    const hist = base.concat(extra).filter(p => etDay(p.t) !== etDay(asOf) && p.t < asOf);
     hist.push({ t: asOf, spot });
-    out[n] = { spotUsd: spot, athUsd: Math.max(d.high, METALS[n][1], spot), changePct, history: hist };
-    if (i === 0) asOf0 = asOf;
+    out[n] = { spotUsd: spot, athUsd: Math.max(d.high, METALS[n][1], spot, ...extra.map(b => b.spot)), changePct, history: hist };
   });
   out.asOf = asOf0; out.source = 'Kitco';
   SPOTS = out; SPOTS_AT = Date.now(); return out;
