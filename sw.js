@@ -1,14 +1,15 @@
 /* My Stack! — passcode-locked service worker. Decrypts the app on-device after unlock. */
 const BASE = '/my-stack-site';
 const FN = '/_serverFn/5401c5282e57c3fe7ac93ddd414cfb32a3caefd3c278ec301db73c47acc41f7b';
-const ENC_CACHE = 'mystack-enc-v1';
+const SW_VERSION = '2026-11-14-icon2'; // bump to make phones pick up a new worker
+const ENC_CACHE = 'mystack-enc-v2';
 const TYPES = { js: 'application/javascript; charset=utf-8', css: 'text/css; charset=utf-8', jpg: 'image/jpeg', png: 'image/png', svg: 'image/svg+xml', ico: 'image/vnd.microsoft.icon', webmanifest: 'application/manifest+json; charset=utf-8', html: 'text/html; charset=utf-8' };
 const METALS = { gold: ['AU', 5600], silver: ['AG', 0], platinum: ['PT', 0], palladium: ['PD', 3400] };
 let KEY = null, MAP = null, TEMPLATE = null, SPOTS = null, SPOTS_AT = 0;
 const mem = new Map();
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil((async () => { for (const k of await caches.keys()) if (k.startsWith('mystack-enc-') && k !== ENC_CACHE) await caches.delete(k); await self.clients.claim(); })()));
 self.addEventListener('message', e => { if (e.data === 'lock') { KEY = null; MAP = null; TEMPLATE = null; mem.clear(); } });
 
 function idb() { return new Promise((res, rej) => { const r = indexedDB.open('mystack-lock', 1); r.onupgradeneeded = () => r.result.createObjectStore('k'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }

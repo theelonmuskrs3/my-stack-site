@@ -37,7 +37,7 @@ button:disabled{opacity:.6}
 <div class="msg" id="m"></div>
 </form>
 <script>
-const BASE='/my-stack-site', SALT='xdGYvCSBgN1Apk2mmaZZBg==', ITER=600000;
+const BASE='/my-stack-site', SALT='QkXFxYCvwpqmQfHvqTz3iA==', ITER=600000;
 const m=document.getElementById('m'), b=document.getElementById('b'), inp=document.getElementById('p');
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('mystack-lock',1);r.onupgradeneeded=()=>r.result.createObjectStore('k');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
