@@ -1,0 +1,7 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>My Stack!</title><meta name="robots" content="noindex"/><style>body{background:#070604}</style></head><body><script>
+(async()=>{try{const r=indexedDB.open('mystack-lock',1);r.onupgradeneeded=()=>r.result.createObjectStore('k');const db=await new Promise((a,b)=>{r.onsuccess=()=>a(r.result);r.onerror=()=>b(r.error)});
+await new Promise(a=>{const t=db.transaction('k','readwrite');t.objectStore('k').delete('aes');t.oncomplete=a;t.onerror=a;});}catch(e){}
+try{const reg=await navigator.serviceWorker.getRegistration('/my-stack-site/');reg&&reg.active&&reg.active.postMessage('lock');}catch(e){}
+try{(await caches.keys()).forEach(k=>caches.delete(k));}catch(e){}
+location.replace('/my-stack-site/');})();
+</script></body></html>

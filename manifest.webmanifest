@@ -1,0 +1,19 @@
+{
+  "name": "My Stack!",
+  "short_name": "My Stack",
+  "description": "Track your own bullion stack against public precious-metal spots.",
+  "id": "/my-stack",
+  "start_url": "/my-stack-site/",
+  "scope": "/my-stack-site/",
+  "display": "standalone",
+  "background_color": "#070604",
+  "theme_color": "#070604",
+  "icons": [
+    {
+      "src": "/my-stack-site/icons/stack-mark.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

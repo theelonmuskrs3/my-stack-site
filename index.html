@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>My Stack!</title><meta name="description" content="My Stack! — your bullion net worth against public gold, silver, platinum, and palladium spots."/>
+<meta name="theme-color" content="#070604"/><meta name="application-name" content="My Stack!"/><meta name="apple-mobile-web-app-title" content="My Stack!"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<meta name="robots" content="noindex"/>
+<link rel="apple-touch-icon-precomposed" sizes="180x180" href="/my-stack-site/icons/stack-mark.png"/><link rel="apple-touch-icon" href="/my-stack-site/icons/stack-mark.png"/>
+<link rel="icon" type="image/png" sizes="180x180" href="/my-stack-site/icons/stack-mark.png"/><link rel="icon" type="image/svg+xml" href="/my-stack-site/favicon.svg"/>
+<link rel="manifest" href="/my-stack-site/manifest.webmanifest"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"/>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#070604;color:#f3ead7}
+body{min-height:100dvh;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',ui-monospace,monospace;
+background:radial-gradient(ellipse 80% 55% at 50% 30%,rgba(212,168,67,.16),transparent 70%),radial-gradient(ellipse 60% 40% at 50% 100%,rgba(200,205,215,.06),transparent 70%),#070604;padding:env(safe-area-inset-top) 20px env(safe-area-inset-bottom)}
+.card{width:100%;max-width:360px;border:1px solid rgba(232,190,92,.55);border-radius:22px;padding:30px 24px 26px;background:linear-gradient(180deg,rgba(28,22,12,.92),rgba(12,10,7,.96));
+box-shadow:0 0 0 1px rgba(232,190,92,.12) inset,0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(212,168,67,.08);text-align:center}
+.mark{width:64px;height:64px;border-radius:14px;display:block;margin:0 auto 14px}
+h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:40px;line-height:1;margin:0;
+background:linear-gradient(180deg,#fff1c1,#e9c160 55%,#b8862b);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.01em}
+.sub{margin:10px 0 26px;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:rgba(243,234,215,.62)}
+label{display:block;text-align:left;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:#e9c160;margin:0 0 8px}
+input{width:100%;font:500 20px 'IBM Plex Mono',monospace;letter-spacing:.3em;text-align:center;color:#fff3cf;background:rgba(0,0,0,.45);
+border:1px solid rgba(232,190,92,.4);border-radius:14px;padding:14px 12px;outline:none;-webkit-appearance:none}
+input:focus{border-color:#e9c160;box-shadow:0 0 0 3px rgba(233,193,96,.18)}
+button{margin-top:16px;width:100%;border:0;border-radius:14px;padding:15px;font:600 19px 'Cormorant Garamond',Georgia,serif;color:#1a1206;
+background:linear-gradient(180deg,#ffe48a,#e8b93f);box-shadow:0 6px 20px rgba(232,185,63,.25);cursor:pointer}
+button:disabled{opacity:.6}
+.msg{min-height:18px;margin-top:14px;font-size:11px;letter-spacing:.12em;color:rgba(243,234,215,.6)}
+.msg.err{color:#ff6b6b}
+</style></head><body>
+<form class="card" id="f" autocomplete="off">
+<img class="mark" src="/my-stack-site/icons/stack-mark.png" alt=""/>
+<h1>My Stack!</h1><div class="sub">Your stack is locked</div>
+<label for="p">Passcode</label>
+<input id="p" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="current-password" required/>
+<button id="b" type="submit">Unlock</button>
+<div class="msg" id="m"></div>
+</form>
+<script>
+const BASE='/my-stack-site', SALT='7p9plyKyMb7MN50XrM/6sw==', ITER=600000;
+const m=document.getElementById('m'), b=document.getElementById('b'), inp=document.getElementById('p');
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('mystack-lock',1);r.onupgradeneeded=()=>r.result.createObjectStore('k');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function putKey(k){const db=await idb();await new Promise((res,rej)=>{const t=db.transaction('k','readwrite');t.objectStore('k').put(k,'aes');t.oncomplete=res;t.onerror=()=>rej(t.error);});}
+async function getKey(){const db=await idb();return new Promise(res=>{const g=db.transaction('k').objectStore('k').get('aes');g.onsuccess=()=>res(g.result||null);g.onerror=()=>res(null);});}
+async function swReady(){ if(!('serviceWorker' in navigator)) throw new Error('This browser cannot run the locked app.');
+  await navigator.serviceWorker.register(BASE+'/sw.js',{scope:BASE+'/'}); await navigator.serviceWorker.ready; }
+async function go(){ await swReady(); if(!navigator.serviceWorker.controller){ await new Promise(r=>{navigator.serviceWorker.addEventListener('controllerchange',r,{once:true});setTimeout(r,1500);}); } location.replace(BASE+'/?t='+Date.now()); }
+(async()=>{ try{ await swReady(); if(await getKey()){ const n=+(sessionStorage.getItem('ms-tries')||0); if(n<2){ sessionStorage.setItem('ms-tries',n+1); m.textContent='Unlocking…'; go(); } } }catch(e){ m.textContent=e.message; m.className='msg err'; } })();
+document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault(); b.disabled=true; m.className='msg'; m.textContent='Checking…';
+  try{
+    const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(inp.value),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(SALT),iterations:ITER,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+    const c=new Uint8Array(await (await fetch(BASE+'/enc/check.bin',{cache:'no-cache'})).arrayBuffer());
+    try{ await crypto.subtle.decrypt({name:'AES-GCM',iv:c.slice(0,12)},key,c.slice(12)); }catch(_){ throw new Error('Wrong passcode'); }
+    inp.value=''; sessionStorage.removeItem('ms-tries'); await putKey(key); m.textContent='Unlocked'; await go();
+  }catch(err){ m.textContent=err.message||'Could not unlock'; m.className='msg err'; b.disabled=false; inp.select(); }
+});
+</script></body></html>
