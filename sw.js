@@ -1,7 +1,7 @@
 /* My Stack! — passcode-locked service worker. Decrypts the app on-device after unlock. */
 const BASE = '/my-stack-site';
 const FN = '/_serverFn/5401c5282e57c3fe7ac93ddd414cfb32a3caefd3c278ec301db73c47acc41f7b';
-const SW_VERSION = '2026-11-14-icon2'; // bump to make phones pick up a new worker
+const SW_VERSION = '2026-11-14-icon3'; // bump to make phones pick up a new worker
 const ENC_CACHE = 'mystack-enc-v2';
 const TYPES = { js: 'application/javascript; charset=utf-8', css: 'text/css; charset=utf-8', jpg: 'image/jpeg', png: 'image/png', svg: 'image/svg+xml', ico: 'image/vnd.microsoft.icon', webmanifest: 'application/manifest+json; charset=utf-8', html: 'text/html; charset=utf-8' };
 const METALS = { gold: ['AU', 5600], silver: ['AG', 0], platinum: ['PT', 0], palladium: ['PD', 3400] };
@@ -137,6 +137,9 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin || !url.pathname.startsWith(BASE + '/')) return;
   const p = url.pathname;
+  if (/\/(icons\/|__grok\/|favicon|manifest)[^/]*$/.test(p) || /\.(webmanifest|png|ico|svg)$/.test(p) && !/^\/(assets|holdings|textures)\//.test(p.slice(BASE.length))) {
+    e.respondWith(fetch(e.request, { cache: 'no-cache' })); return; // icons & manifests: always revalidate with the network
+  }
   if (e.request.mode === 'navigate' && (p === BASE + '/' || p === BASE + '/index.html')) {
     e.respondWith((async () => { if (await loadKey()) { try { return await appPage(); } catch (err) { console.error(err); } } return fetch(e.request).catch(() => caches.match(BASE + '/index.html')); })());
     return;

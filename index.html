@@ -3,9 +3,9 @@
 <meta name="theme-color" content="#070604"/><meta name="application-name" content="My Stack!"/><meta name="apple-mobile-web-app-title" content="My Stack!"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black"/>
 <meta name="robots" content="noindex"/>
-<link rel="apple-touch-icon-precomposed" sizes="180x180" href="/my-stack-site/icons/stack-mark.png"/><link rel="apple-touch-icon" href="/my-stack-site/icons/stack-mark.png"/>
-<link rel="icon" type="image/png" sizes="180x180" href="/my-stack-site/icons/stack-mark.png"/><link rel="icon" type="image/svg+xml" href="/my-stack-site/favicon.svg"/>
-<link rel="manifest" href="/my-stack-site/manifest.webmanifest"/>
+<link rel="apple-touch-icon-precomposed" sizes="180x180" href="/my-stack-site/icons/stack-mark-v2.png"/><link rel="apple-touch-icon" href="/my-stack-site/icons/stack-mark-v2.png"/>
+<link rel="icon" type="image/png" sizes="180x180" href="/my-stack-site/icons/stack-mark-v2.png"/><link rel="icon" type="image/svg+xml" href="/my-stack-site/favicon-v2.svg"/>
+<link rel="manifest" href="/my-stack-site/manifest-v2.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"/>
 <style>
@@ -29,7 +29,7 @@ button:disabled{opacity:.6}
 .msg.err{color:#ff6b6b}
 </style></head><body>
 <form class="card" id="f" autocomplete="off">
-<img class="mark" src="/my-stack-site/icons/stack-mark.png" alt=""/>
+<img class="mark" src="/my-stack-site/icons/stack-mark-v2.png" alt=""/>
 <h1>My Stack!</h1><div class="sub">Your stack is locked</div>
 <label for="p">Passcode</label>
 <input id="p" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="current-password" required/>
@@ -37,14 +37,14 @@ button:disabled{opacity:.6}
 <div class="msg" id="m"></div>
 </form>
 <script>
-const BASE='/my-stack-site', SALT='QkXFxYCvwpqmQfHvqTz3iA==', ITER=600000;
+const BASE='/my-stack-site', SALT='xWdxMDupoB248PPMt7JrNw==', ITER=600000;
 const m=document.getElementById('m'), b=document.getElementById('b'), inp=document.getElementById('p');
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('mystack-lock',1);r.onupgradeneeded=()=>r.result.createObjectStore('k');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function putKey(k){const db=await idb();await new Promise((res,rej)=>{const t=db.transaction('k','readwrite');t.objectStore('k').put(k,'aes');t.oncomplete=res;t.onerror=()=>rej(t.error);});}
 async function getKey(){const db=await idb();return new Promise(res=>{const g=db.transaction('k').objectStore('k').get('aes');g.onsuccess=()=>res(g.result||null);g.onerror=()=>res(null);});}
 async function swReady(){ if(!('serviceWorker' in navigator)) throw new Error('This browser cannot run the locked app.');
-  await navigator.serviceWorker.register(BASE+'/sw.js',{scope:BASE+'/'}); await navigator.serviceWorker.ready; }
+  const reg=await navigator.serviceWorker.register(BASE+'/sw.js',{scope:BASE+'/',updateViaCache:'none'}); reg.update().catch(()=>{}); await navigator.serviceWorker.ready; }
 async function go(){ await swReady(); if(!navigator.serviceWorker.controller){ await new Promise(r=>{navigator.serviceWorker.addEventListener('controllerchange',r,{once:true});setTimeout(r,1500);}); } location.replace(BASE+'/?t='+Date.now()); }
 (async()=>{ try{ await swReady(); if(await getKey()){ const n=+(sessionStorage.getItem('ms-tries')||0); if(n<2){ sessionStorage.setItem('ms-tries',n+1); m.textContent='Unlocking…'; go(); } } }catch(e){ m.textContent=e.message; m.className='msg err'; } })();
 document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault(); b.disabled=true; m.className='msg'; m.textContent='Checking…';
