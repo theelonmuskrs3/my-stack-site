@@ -1,11 +1,11 @@
 /* My Stack! — passcode-locked service worker. Decrypts the app on-device after unlock. */
 const BASE = '/my-stack-site';
 const FN = '/_serverFn/5401c5282e57c3fe7ac93ddd414cfb32a3caefd3c278ec301db73c47acc41f7b';
-const SW_VERSION = '2026-11-14-icon3'; // bump to make phones pick up a new worker
+const SW_VERSION = '2026-11-14-sync2'; // bump to make phones pick up a new worker
 const ENC_CACHE = 'mystack-enc-v2';
 const TYPES = { js: 'application/javascript; charset=utf-8', css: 'text/css; charset=utf-8', jpg: 'image/jpeg', png: 'image/png', svg: 'image/svg+xml', ico: 'image/vnd.microsoft.icon', webmanifest: 'application/manifest+json; charset=utf-8', html: 'text/html; charset=utf-8' };
 const METALS = { gold: ['AU', 5600], silver: ['AG', 0], platinum: ['PT', 0], palladium: ['PD', 3400] };
-let KEY = null, MAP = null, TEMPLATE = null, SPOTS = null, SPOTS_AT = 0;
+let KEY = null, MAP = null, MAP_SIG = '', TEMPLATE = null, SPOTS = null, SPOTS_AT = 0;
 const mem = new Map();
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -32,6 +32,19 @@ async function decrypt(name) {
   return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12) }, key, b.slice(12)));
 }
 async function getMap() { if (!MAP) MAP = JSON.parse(new TextDecoder().decode(await decrypt('map.bin'))); return MAP; }
+// network-first refresh of the encrypted file map; a new publish => drop everything decrypted in memory
+let MAP_P = null;
+function refreshMap() { // concurrent callers share one in-flight refresh
+  if (!MAP_P) MAP_P = (async () => {
+    const b = await encBytes('map.bin'); const sig = Array.from(b.slice(0, 16)).join(',');
+    if (sig !== MAP_SIG || !MAP) { const key = await loadKey(); if (!key) throw new Error('locked');
+      const m = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12) }, key, b.slice(12))));
+      TEMPLATE = null; mem.clear(); MAP = m; MAP_SIG = sig; }
+    return MAP;
+  })().finally(() => { MAP_P = null; });
+  return MAP_P;
+}
+async function holdingsPayload() { const map = await refreshMap(); return JSON.parse(new TextDecoder().decode(await decrypt(map['/__holdings.json']))); }
 
 // ---- spot data (same logic as the original server function) ----
 const etDay = t => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -127,9 +140,12 @@ function toJSON(d) {
   return JSON.stringify(o(['result', 'error', 'context'], [res, { t: 2, s: 1 }, { t: 11, i: id++, p: { k: [], v: [] }, o: 0 }], rootId));
 }
 async function appPage() {
-  if (!TEMPLATE) TEMPLATE = new TextDecoder().decode(await decrypt((await getMap())['/__app.html']));
+  const map = await refreshMap();
+  if (!TEMPLATE) TEMPLATE = new TextDecoder().decode(await decrypt(map['/__app.html']));
+  const hold = await holdingsPayload();
   let data = 'null'; try { data = toSSR(await getSpots()); } catch (e) {}
-  const html = TEMPLATE.replace('l:__LOADER_DATA__', 'l:' + data).replaceAll('u:__NOW__', 'u:' + Date.now());
+  const html = TEMPLATE.replace('l:__LOADER_DATA__', 'l:' + data).replaceAll('u:__NOW__', 'u:' + Date.now())
+    .replace('__MYSTACK_HOLDINGS_JSON__', () => JSON.stringify(hold).replace(/</g, '\\u003c'));
   return new Response(html, { headers: { 'content-type': TYPES.html, 'cache-control': 'no-store' } });
 }
 
@@ -142,6 +158,12 @@ self.addEventListener('fetch', e => {
   }
   if (e.request.mode === 'navigate' && (p === BASE + '/' || p === BASE + '/index.html')) {
     e.respondWith((async () => { if (await loadKey()) { try { return await appPage(); } catch (err) { console.error(err); } } return fetch(e.request).catch(() => caches.match(BASE + '/index.html')); })());
+    return;
+  }
+  if (p === BASE + '/__rev') {
+    e.respondWith((async () => { if (!(await loadKey())) return new Response('Locked', { status: 403 });
+      try { const h = await holdingsPayload(); return new Response(JSON.stringify({ rev: h.rev }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }); }
+      catch (err) { return new Response('{}', { status: 503 }); } })());
     return;
   }
   if (p === BASE + FN) {
